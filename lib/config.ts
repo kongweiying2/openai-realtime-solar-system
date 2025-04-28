@@ -117,6 +117,20 @@ const toolsDefinition = [
     description: "Get the ISS position and once you have it, say it out loud",
     parameters: {},
   },
+  {
+    name: "navigate_to_url",
+    description: "Navigate the main browser view to a specific URL when requested by the user.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description: "The full URL to navigate to (e.g., https://www.example.com). If the user provides a domain name (e.g., reddit.com), prepend https://. If the user provides a search term, construct a Google search URL.",
+        },
+      },
+      required: ["url"],
+    },
+  },
 ];
 
 export const TOOLS = toolsDefinition.map((tool) => ({
@@ -125,7 +139,9 @@ export const TOOLS = toolsDefinition.map((tool) => ({
 }));
 
 export const INSTRUCTIONS = `
-You are an assistant helping users navigate a 3D solar system and understand the planets and their orbits.
+You are an assistant helping users navigate a 3D solar system and understand the planets and their orbits. You can also navigate the main browser window.
+
+If the user asks you to navigate to a specific website or URL (e.g., "go to reddit.com", "open youtube", "navigate to wikipedia.org"), use the navigate_to_url tool. Construct the full URL appropriately: prepend https:// if missing for domains, or create a Google search link for general search terms. Respond confirming the navigation before calling the tool.
 
 As soon as the user starts talking about a specific planet, use the focus_planet tool to zoom in on that planet.
 When they stop talking about it and ask about another topic, there's no need to focus on it anymore, so call the reset_camera tool to reset the camera position to view the whole solar system.

@@ -151,7 +151,7 @@ export default function App() {
   function stopRecording() {
     setIsListening(false);
 
-    // Stop existing mic tracks so the user’s mic is off
+    // Stop existing mic tracks so the user's mic is off
     if (audioStream) {
       audioStream.getTracks().forEach((track) => track.stop());
     }
@@ -194,14 +194,14 @@ export default function App() {
     async function handleToolCall(output: any) {
       const toolCall = {
         name: output.name,
-        arguments: output.arguments,
+        arguments: JSON.parse(output.arguments),
       };
       console.log("Tool call:", toolCall);
       setToolCall(toolCall);
 
       // TOOL CALL HANDLING
       // Initialize toolCallOutput with a default response
-      const toolCallOutput: ToolCallOutput = {
+      let toolCallOutput: ToolCallOutput = {
         response: `Tool call ${toolCall.name} executed successfully.`,
       };
 
@@ -212,6 +212,20 @@ export default function App() {
         );
         console.log("ISS position:", issPosition);
         toolCallOutput.issPosition = issPosition;
+      } else if (toolCall.name === 'navigate_to_url') {
+        // Send navigation request to the parent React Native app
+        // @ts-ignore - ReactNativeWebView is injected by the host
+        if (window.ReactNativeWebView) {
+          // @ts-ignore - ReactNativeWebView is injected by the host
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'navigate',
+            url: toolCall.arguments.url,
+          }));
+          toolCallOutput.response = `Navigating to ${toolCall.arguments.url}`;
+        } else {
+          console.warn('ReactNativeWebView not found. Cannot send navigation message.');
+          toolCallOutput.response = `Could not navigate: ReactNativeWebView bridge not available.`
+        }
       }
 
       sendClientEvent({
@@ -264,7 +278,50 @@ export default function App() {
         console.log("Session update sent:", sessionUpdate);
       });
     }
-  }, [dataChannel, sendClientEvent]);
+
+    // Listen for messages from the parent React Native app
+    const handleReactNativeMessage = (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('Message received from RN:', message);
+        if (message.type === 'toggle_mic') {
+          // Ensure session is started before toggling microphone
+          if (!isSessionActive) {
+            handleConnectClick();
+          }
+          handleMicToggleClick();
+        } else if (message.type === 'start_session') {
+          // Allow RN to explicitly trigger session start
+          if (!isSessionActive) {
+            handleConnectClick();
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing message from RN:", error);
+      }
+    };
+
+    // React Native WebView communicates via 'message' events dispatched on document
+    // @ts-ignore
+    document.addEventListener("message", handleReactNativeMessage);
+    // Also listen on window for browser testing
+    window.addEventListener("message", handleReactNativeMessage);
+
+    // Inform RN that the agent webview is ready
+    // @ts-ignore - ReactNativeWebView is injected by the host
+    if (window.ReactNativeWebView) {
+      // @ts-ignore - ReactNativeWebView is injected by the host
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'agent_ready' }));
+    }
+
+    // Cleanup listener on unmount
+    return () => {
+      // @ts-ignore
+      document.removeEventListener("message", handleReactNativeMessage);
+      window.removeEventListener("message", handleReactNativeMessage);
+    };
+
+  }, [dataChannel, sendClientEvent, isSessionActive]);
 
   const handleConnectClick = async () => {
     if (isSessionActive) {
